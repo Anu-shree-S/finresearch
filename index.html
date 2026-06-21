@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinResearch AI - Financial Services Research Assistant</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        /* === CSS Variables & Theming === */
+        :root {
+            --background: #f6f7fb;
+            --surface: #ffffff;
+            --surface-secondary: #f0f2f7;
+            --surface-hover: #e4e7f0;
+            --text-primary: #1d2433;
+            --text-secondary: #667085;
+            --border: #dfe3ea;
+            --accent: #3157d5;
+            --accent-hover: #2646b0;
+            --danger: #d93025;
+            --success: #1e8e3e;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --radius: 8px;
+            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --transition: all 0.25s ease;
+        }
+
+        body.dark-theme {
+            --background: #111318;
+            --surface: #191c23;
+            --surface-secondary: #232730;
+            --surface-hover: #2d323e;
+            --text-primary: #f3f4f6;
+            --text-secondary: #a8b0bf;
+            --border: #323743;
+            --accent: #7894ff;
+            --accent-hover: #5c7cfa;
+        }
+
+        /* === Base Styles === */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        button { cursor: pointer; border: none; background: none; color: inherit; font-family: inherit; }
+        input, select, textarea { font-family: inherit; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* === Typography === */
+        h1, h2, h3 { font-weight: 600; }
+        .text-sm { font-size: 0.875rem; }
+        .text-xs { font-size: 0.75rem; }
+        .text-muted { color: var(--text-secondary); }
+
+        /* === UI Components === */
+        .btn {
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border: 1px solid transparent;
+        }
+        .btn-primary { background-color: var(--accent); color: white; }
+        .btn-primary:hover { background-color: var(--accent-hover); }
+        .btn-secondary { background-color: var(--surface-secondary); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background-color: var(--surface-hover); }
+        .btn-outline { border-color: var(--border); color: var(--text-primary); }
+        .btn-outline:hover { background-color: var(--surface-hover); }
+        .btn-icon { padding: 6px; border-radius: 4px; display: inline-flex; }
+        .btn-icon:hover { background-color: var(--surface-hover); }
+
+        /* === Layout === */
+        .navbar {
+            height: 60px;
+            flex-shrink: 0;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 10;
+        }
+        .nav-left { display: flex; align-items: center; gap: 16px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .logo-text { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+        .subtitle { font-size: 0.8rem; color: var(--text-secondary); font-weight: normal; margin-left: 8px; border-left: 1px solid var(--border); padding-left: 8px; display: none; }
+        @media (min-width: 768px) { .subtitle { display: inline; } }
+
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        /* === Left Panel (Library) === */
+        .research-library-panel {
+            width: 270px;
+            min-width: 270px;
+            overflow: hidden;
+            background-color: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease, transform 0.25s ease;
+            z-index: 5;
+        }
+
+        .research-library-panel.collapsed {
+            width: 0;
+            min-width: 0;
+            padding-left: 0;
+            padding-right: 0;
+            border-right: none;
+            opacity: 0;
+            transform: translateX(-100%);
+            pointer-events: none;
+        }
+
+        .panel-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;}
+        .panel-content { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-height: 0;}
+        
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 24px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .upload-area:hover { border-color: var(--accent); background-color: var(--surface-hover); }
+        .doc-list { display: flex; flex-direction: column; gap: 8px; }
+        .doc-item {
+            display: flex; align-items: flex-start; gap: 12px; padding: 12px;
+            background-color: var(--surface-secondary); border-radius: var(--radius);
+            border: 1px solid transparent; cursor: pointer; transition: var(--transition);
+        }
+        .doc-item:hover { border-color: var(--border); }
+        .doc-item.active { border-color: var(--accent); background-color: rgba(49, 87, 213, 0.05); }
+        body.dark-theme .doc-item.active { background-color: rgba(120, 148, 255, 0.1); }
+        .doc-info { flex: 1; overflow: hidden; }
+        .doc-title { font-weight: 500; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .doc-meta { font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px; }
+        .doc-delete-btn {
+            flex: 0 0 auto;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 7px;
+            color: var(--text-secondary);
+            border: 1px solid transparent;
+            margin-top: -3px;
+        }
+        .doc-delete-btn:hover {
+            color: var(--danger);
+            background: rgba(217, 48, 37, 0.10);
+            border-color: rgba(217, 48, 37, 0.25);
+        }
+        .doc-delete-btn svg { width: 17px; height: 17px; }
+
+
+        /* === Center Panel (Workspace) === */
+        .research-workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background);
+            min-width: 0; /* Allows flex child to shrink properly */
+            overflow: hidden;
+        }
+        .workspace-tabs {
+            min-height: 44px;
+            flex-shrink: 0;
+            display: flex;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            scrollbar-width: none; 
+        }
+        .workspace-tabs::-webkit-scrollbar { display: none; }
+        .tab-btn {
+            padding: 12px 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { color: var(--text-primary); }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        .main-content {
+            height: calc(100vh - 104px); /* 60px nav + 44px tabs */
+            flex: 1;
+            position: relative;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .tab-content {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            display: none;
+        }
+        .tab-content.active { display: flex; flex-direction: column; }
+
+        /* Document Tab Layout */
+        .doc-workspace { display: flex; height: 100%; width: 100%; overflow: hidden; }
+        
+        .toc-panel {
+            width: 250px; 
+            min-width: 250px;
+            background-color: var(--surface); 
+            border-right: 1px solid var(--border);
+            overflow-y: auto; 
+            padding: 16px; 
+            display: flex; 
+            flex-direction: column;
+            transition: width 0.25s ease, min-width 0.25s ease, opacity 0.2s ease, transform 0.25s ease;
+        }
+        .toc-panel.collapsed {
+            width: 0;
+            min-width: 0;
+            padding: 0;
+            opacity: 0;
+            border-right: none;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .toc-item { font-size: 0.85rem; padding: 6px 0; cursor: pointer; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: flex-start;}
+        .toc-item:hover { color: var(--accent); }
+        .toc-item.active-toc { color: var(--accent); font-weight: bold; background: rgba(49, 87, 213, 0.05); border-radius: 4px;}
+        
+        /* Hierarchy styling */
+        .toc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;}
+        .toc-page { font-family: monospace; font-size: 0.8rem; opacity: 0.7;}
+        .toc-level-1 { padding-left: 4px; font-weight: 600; color: var(--text-primary); margin-top: 8px;}
+        .toc-level-2 { padding-left: 16px; font-weight: 500; }
+        .toc-level-3 { padding-left: 28px; font-weight: 400; }
+
+        .pdf-viewer-container {
+            flex: 1; background-color: #525659; display: flex; flex-direction: column; overflow: hidden; position: relative; min-width: 0;
+        }
+        body.dark-theme .pdf-viewer-container { background-color: #2c2c2c; }
+        .pdf-toolbar {
+            background-color: var(--surface); padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .pdf-toolbar-center { display: flex; align-items: center; gap: 12px; }
+        .pdf-render-area {
+            flex: 1; overflow: auto; display: flex; justify-content: center; padding: 24px;
+        }
+        .pdf-page-wrapper {
+            position: relative; background: white; box-shadow: var(--shadow);
+        }
+        canvas { display: block; }
+        
+        /* Tool Content wrappers (Summary, Matrix, etc) */
+        .tool-content { padding: 32px; max-width: 1000px; margin: 0 auto; width: 100%; }
+        .tool-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;}
+        .tool-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; }
+        
+        /* === Flowchart Specific Styles === */
+        .methodology-tab-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            padding: 16px;
+        }
+        .flowchart-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .flowchart-toolbar button {
+            min-height: 36px;
+            padding: 0 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .flowchart-toolbar button:hover { background: var(--border); }
+        #flowchartZoomLabel {
+            min-width: 56px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .flowchart-viewer-wrapper {
+            flex: 1;
+            min-height: 520px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            overflow: hidden;
+            position: relative;
+        }
+        .flowchart-viewport {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            position: relative;
+            background: var(--surface-secondary);
+            cursor: grab;
+            scrollbar-width: thin;
+        }
+        .flowchart-viewport:active {
+            cursor: grabbing;
+        }
+        .flowchart-canvas {
+            transform-origin: top left;
+            padding: 48px;
+            min-width: 100%;
+            min-height: 100%;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #flowchartCanvas svg {
+            width: max-content;
+            height: auto;
+            min-width: 800px;
+            display: block;
+        }
+        #flowchartCanvas .node rect,
+        #flowchartCanvas .node polygon,
+        #flowchartCanvas .node path {
+            stroke-width: 1.5px;
+        }
+        #flowchartCanvas .label,
+        #flowchartCanvas .nodeLabel,
+        #flowchartCanvas text {
+            font-size: 16px !important;
+            font-family: Arial, sans-serif !important;
+        }
+
+        /* Gemini Methodology Mind Map */
+        .mindmap-svg {
+            min-width: 1350px;
+            min-height: 820px;
+            overflow: visible;
+            shape-rendering: geometricPrecision;
+            text-rendering: geometricPrecision;
+        }
+        .mindmap-edge {
+            fill: none;
+            stroke: var(--text-secondary);
+            stroke-width: 2.4;
+            opacity: .74;
+        }
+        .mindmap-node { cursor: pointer; }
+        .mindmap-node rect {
+            fill: var(--surface);
+            stroke: var(--accent);
+            stroke-width: 2.2;
+            rx: 14;
+            ry: 14;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.08));
+        }
+        .mindmap-node.root rect { fill: var(--accent); }
+        .mindmap-node.active rect {
+            stroke-width: 3;
+            stroke: var(--accent-hover);
+        }
+        .mindmap-node.has-children rect { stroke-width: 2.5; }
+        .mindmap-node.collapsed rect { stroke-dasharray: 6 4; }
+        .mindmap-node text {
+            fill: var(--text-primary);
+            stroke: none;
+            font-size: 18px;
+            font-weight: 650;
+            letter-spacing: 0;
+            pointer-events: none;
+            text-rendering: optimizeLegibility;
+            paint-order: fill;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+        .mindmap-node.active text {
+            text-decoration: underline;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 4px;
+        }
+        .mindmap-node.root text { fill: #fff; font-size: 19px; }
+        .mindmap-expand-btn { cursor: pointer; }
+        .mindmap-expand-btn circle {
+            fill: var(--surface);
+            stroke: var(--accent);
+            stroke-width: 2;
+        }
+        .mindmap-expand-btn text {
+            fill: var(--accent);
+            stroke: none;
+            font-size: 16px;
+            font-weight: 700;
+            text-rendering: optimizeLegibility;
+            dominant-baseline: middle;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+        .mindmap-node.root + .mindmap-expand-btn text, .mindmap-node.root .mindmap-expand-btn text { fill: var(--accent); }
+        .mindmap-tooltip {
+            position: fixed;
+            z-index: 120;
+            max-width: 280px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+            color: var(--text-primary);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+            font-size: 0.8rem;
+            line-height: 1.4;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: opacity 0.14s ease, transform 0.14s ease;
+        }
+        .mindmap-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .mindmap-tooltip-title {
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--text-primary);
+        }
+        .mindmap-tooltip-body {
+            color: var(--text-secondary);
+        }
+        .mindmap-empty { padding: 40px; text-align: center; color: var(--text-secondary); }
+
+        /* Markdown Rendering */
+        .markdown-body { line-height: 1.6; font-size: 0.95rem; }
+        .markdown-body h1, .markdown-body h2, .markdown-body h3 { margin-top: 1.5em; margin-bottom: 0.5em; }
+        .markdown-body p { margin-bottom: 1em; }
+        .markdown-body ul, .markdown-body ol { margin-bottom: 1em; padding-left: 2em; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1em; font-size: 0.9rem; }
+        .markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
+        .markdown-body th { background-color: var(--surface-secondary); }
+
+        /* === Right Panel (Chat) === */
+        .panel-right {
+            width: 350px;
+            background-color: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease, width 0.3s ease;
+            z-index: 5;
+            flex-shrink: 0;
+        }
+        .panel-right.collapsed { transform: translateX(100%); width: 0; position: absolute; right: 0; height: 100%; }
+        
+        .chat-history { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+        .chat-msg { display: flex; flex-direction: column; max-width: 90%; }
+        .msg-user { align-self: flex-end; background-color: var(--accent); color: white; padding: 12px 16px; border-radius: 16px 16px 0 16px; }
+        .msg-ai { align-self: flex-start; background-color: var(--surface-secondary); padding: 16px; border-radius: 16px 16px 16px 0; width: 100%; max-width: 100%; border: 1px solid var(--border); }
+        
+        .citation-chip {
+            display: inline-block; padding: 2px 8px; margin: 4px 4px 4px 0; font-size: 0.75rem;
+            background-color: rgba(49, 87, 213, 0.1); color: var(--accent); border: 1px solid var(--accent);
+            border-radius: 12px; cursor: pointer; transition: var(--transition);
+        }
+        .citation-chip:hover { background-color: var(--accent); color: white; }
+        body.dark-theme .citation-chip { background-color: rgba(120, 148, 255, 0.15); border-color: rgba(120, 148, 255, 0.3); }
+        body.dark-theme .citation-chip:hover { background-color: var(--accent); }
+
+        .chat-input-area { padding: 16px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+        .input-wrapper { display: flex; gap: 8px; background: var(--surface-secondary); padding: 8px; border-radius: 24px; border: 1px solid var(--border); align-items: flex-end;}
+        .input-wrapper textarea {
+            flex: 1; border: none; background: transparent; resize: none; max-height: 120px; outline: none;
+            padding: 8px 12px; font-size: 0.95rem; color: var(--text-primary); line-height: 1.4;
+        }
+        .send-btn {
+            background: var(--accent); color: white; border-radius: 50%; width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-bottom: 2px;
+        }
+        .send-btn:disabled { background: var(--border); cursor: not-allowed; }
+
+        .prompt-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .prompt-chip { font-size: 0.75rem; padding: 6px 10px; background: var(--surface-secondary); border: 1px solid var(--border); border-radius: 16px; cursor: pointer; }
+        .prompt-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* === Modals === */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal { background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 500px; padding: 24px; box-shadow: var(--shadow); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 0.9rem; }
+        .form-group input[type="password"] { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-secondary); color: var(--text-primary); }
+        .alert { padding: 12px; border-radius: var(--radius); margin-bottom: 16px; font-size: 0.85rem; background: rgba(217, 48, 37, 0.1); color: var(--danger); border: 1px solid rgba(217, 48, 37, 0.2); }
+
+        /* Utilities & Loaders */
+        .hidden { display: none !important; }
+        .spinner { border: 3px solid rgba(0,0,0,0.1); width: 24px; height: 24px; border-radius: 50%; border-left-color: var(--accent); animation: spin 1s linear infinite; }
+        body.dark-theme .spinner { border-color: rgba(255,255,255,0.1); border-left-color: var(--accent); }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loader-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: var(--text-secondary); gap: 16px;}
+
+        /* Icons */
+        svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        
+        @media (max-width: 1024px) {
+            .panel-right { position: absolute; right: 0; height: 100%; box-shadow: -4px 0 15px rgba(0,0,0,0.1); }
+        }
+        @media (max-width: 768px) {
+            .research-library-panel { position: absolute; left: 0; height: 100%; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
+            .toc-panel { display: none; } 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation -->
+    <header class="navbar">
+        <div class="nav-left">
+            <button class="btn-icon" id="toggle-library" title="Toggle Research Library" aria-expanded="true" aria-label="Close Research Library">
+                <svg viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <div class="logo-text">
+                <svg viewBox="0 0 24 24" style="color: var(--accent); width: 24px; height: 24px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                FinResearch AI
+                <span class="subtitle">Gemini-Powered Research Assistant</span>
+            </div>
+        </div>
+        <div class="nav-right">
+            <button class="btn btn-secondary text-sm" id="btn-api-settings">
+                <svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                API Key
+            </button>
+            <button class="btn-icon" id="theme-toggle" title="Toggle Theme">
+                <svg class="sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </button>
+            <button class="btn-icon" id="toggle-chat" title="Toggle Chat">
+                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="app-container" id="appLayout">
+        <!-- Left Panel: Library -->
+        <aside class="research-library-panel" id="researchLibraryPanel">
+            <div class="panel-header">
+                <h3>Research Library</h3>
+            </div>
+            <div class="panel-content">
+                <label class="upload-area" id="upload-zone">
+                    <input type="file" id="file-upload" accept="application/pdf" multiple class="hidden">
+                    <svg viewBox="0 0 24 24" style="width: 32px; height: 32px; color: var(--text-secondary); margin-bottom: 8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <p class="text-sm font-medium">Upload PDFs</p>
+                    <p class="text-xs text-muted mt-1">Drag & drop or click</p>
+                </label>
+                
+                <div class="text-xs font-semibold text-muted" style="margin-top: 8px;">DOCUMENTS</div>
+                <div class="doc-list" id="document-list">
+                    <!-- Documents populated via JS -->
+                </div>
+                <button class="btn btn-outline text-sm w-full" id="btn-load-demo" style="margin-top: auto;">Load Demo Data</button>
+            </div>
+        </aside>
+
+        <!-- Center Panel: Workspace -->
+        <main class="research-workspace">
+            <div class="workspace-tabs" id="tabs-container">
+                <button class="tab-btn active" data-tab="tab-document">Document</button>
+                <button class="tab-btn" data-tab="tab-summary">Summary</button>
+                <button class="tab-btn" data-tab="tab-matrix">Literature Matrix</button>
+                <button class="tab-btn" data-tab="tab-compare">Compare</button>
+                <button class="tab-btn" data-tab="tab-gaps">Research Gaps</button>
+                <button class="tab-btn" data-tab="tab-flowchart">Mind Map</button>
+            </div>
+
+            <div class="main-content">
+                <!-- Tab: Document (PDF Viewer) -->
+                <div class="tab-content active" id="tab-document">
+                    <div class="doc-workspace">
+                        <div class="toc-panel" id="toc-container">
+                            <div class="text-sm font-semibold mb-2">Table of Contents</div>
+                            <div id="toc-list" class="text-muted text-sm">Upload a document to view contents.</div>
+                        </div>
+                        <div class="pdf-viewer-container">
+                            <div class="pdf-toolbar">
+                                <button class="btn-icon" id="toggle-toc" title="Toggle Table of Contents">
+                                    <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                </button>
+                                <div class="pdf-toolbar-center">
+                                    <button class="btn-icon" id="pdf-prev"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+                                    <span class="text-sm"><span id="page-num">0</span> / <span id="page-count">0</span></span>
+                                    <button class="btn-icon" id="pdf-next"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg></button>
+                                    <div style="width: 1px; height: 20px; background: var(--border); margin: 0 8px;"></div>
+                                    <button class="btn-icon" id="pdf-zoom-out"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+                                    <span class="text-sm" id="zoom-val" style="min-width: 45px; text-align: center;">100%</span>
+                                    <button class="btn-icon" id="pdf-zoom-in"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+                                </div>
+                                <div style="width:28px;"></div> <!-- Spacer -->
+                            </div>
+                            <div class="pdf-render-area" id="pdf-render-area">
+                                <div class="pdf-page-wrapper" id="pdf-wrapper">
+                                    <canvas id="pdf-canvas"></canvas>
+                                </div>
+                                <div id="pdf-empty-state" class="loader-container">
+                                    <svg viewBox="0 0 24 24" style="width: 48px; height: 48px; opacity: 0.5;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                    <p>Select a document to view</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generic Tool Tabs Template -->
+                <div class="tab-content" id="tab-summary">
+                    <div class="tool-content">
+                        <div class="tool-header">
+                            <h2>Document Summary</h2>
+                            <button class="btn btn-primary" onclick="generateToolContent('summary')">Generate Summary</button>
+                        </div>
+                        <div id="summary-result" class="tool-card markdown-body">
+                            <p class="text-muted">Select documents and click generate to create a structured summary.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-matrix">
+                    <div class="tool-content">
+                        <div class="tool-header">
+                            <h2>Literature Matrix</h2>
+                            <button class="btn btn-primary" onclick="generateToolContent('matrix')">Generate Matrix</button>
+                        </div>
+                        <div id="matrix-result" class="tool-card markdown-body" style="overflow-x: auto;">
+                            <p class="text-muted">Select multiple documents to generate a comparative literature matrix.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-compare">
+                    <div class="tool-content">
+                        <div class="tool-header">
+                            <h2>Compare Papers</h2>
+                            <button class="btn btn-primary" onclick="generateToolContent('compare')">Compare Selected</button>
+                        </div>
+                        <div id="compare-result" class="tool-card markdown-body">
+                            <p class="text-muted">Select two or more papers to compare methodologies and findings.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-gaps">
+                    <div class="tool-content">
+                        <div class="tool-header">
+                            <h2>Research Gaps</h2>
+                            <button class="btn btn-primary" onclick="generateToolContent('gaps')">Identify Gaps</button>
+                        </div>
+                        <div id="gaps-result" class="tool-card markdown-body">
+                            <p class="text-muted">Analyze selected papers to identify potential research gaps.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Methodology Flowchart Tab -->
+                <div class="tab-content" id="tab-flowchart">
+                    <div class="methodology-tab-layout">
+                        <div class="tool-header" style="margin-bottom: 12px;">
+                            <h2>Gemini Methodology Mind Map</h2>
+                            <button class="btn btn-primary" onclick="generateToolContent('flowchart')">Generate Mind Map</button>
+                        </div>
+                        <div class="flowchart-toolbar">
+                            <button id="flowZoomOutBtn" onclick="zoomOutFlowchart()">−</button>
+                            <span id="flowchartZoomLabel">100%</span>
+                            <button id="flowZoomInBtn" onclick="zoomInFlowchart()">+</button>
+                            <button id="flowResetZoomBtn" onclick="resetFlowchartZoom()">Reset</button>
+                            <button id="flowFitBtn" onclick="fitFlowchartToViewport(true)">Fit</button>
+                            <button id="flowFitWidthBtn" onclick="fitFlowchartToViewport(false)">Fit Width</button>
+                            <button id="flowFullscreenBtn" onclick="toggleFlowchartFullscreen()">Full Screen</button>
+                            <button id="flowExportPngBtn" onclick="exportFlowchartPng()">PNG</button>
+                            <button id="flowExportPdfBtn" onclick="exportFlowchartPdf()">PDF</button>
+                        </div>
+                        <div class="flowchart-viewer-wrapper" id="flowchartViewerWrapper">
+                            <div id="flowchartViewport" class="flowchart-viewport">
+                                <div id="flowchartCanvas" class="flowchart-canvas text-muted">
+                                    <p style="text-align:center;">Generate a Gemini-powered methodology mind map to view it here.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel: Chat -->
+        <aside class="panel-right" id="panel-chat">
+            <div class="panel-header" style="background: var(--surface-secondary);">
+                <h3 class="text-sm">Research Assistant</h3>
+                <span class="text-xs text-muted" id="chat-mode">Selected Docs</span>
+            </div>
+            
+            <div class="chat-history" id="chat-history">
+                <div class="msg-ai markdown-body">
+                    <p>Hello! I am FinResearch AI. I can help you analyze the financial papers you upload.</p>
+                    <p>Select a document and ask me questions like:</p>
+                    <ul>
+                        <li>What is the main objective?</li>
+                        <li>What dataset was used?</li>
+                        <li>Summarize the key findings.</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <div class="prompt-suggestions" id="prompt-chips">
+                    <span class="prompt-chip" onclick="setChatInput('What is the research problem?')">Research Problem</span>
+                    <span class="prompt-chip" onclick="setChatInput('Describe the methodology.')">Methodology</span>
+                    <span class="prompt-chip" onclick="setChatInput('What are the limitations?')">Limitations</span>
+                </div>
+                <div class="input-wrapper">
+                    <textarea id="chat-input" placeholder="Ask about the selected documents..." rows="1"></textarea>
+                    <button class="send-btn" id="btn-send-chat" disabled>
+                        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+                <div class="text-xs text-muted" style="text-align: center; margin-top: 8px;">AI can make mistakes. Verify citations.</div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- API Key Modal -->
+    <div class="modal-overlay" id="api-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Gemini API Settings</h3>
+                <button class="btn-icon" onclick="closeApiModal()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+            <div class="alert">
+                <strong>Note:</strong> This MVP calls the Gemini API directly from the browser. Your key is stored only in session storage and clears when you close the tab.
+            </div>
+            <div class="form-group">
+                <label for="api-key-input">API Key (gemini-2.5-flash)</label>
+                <input type="password" id="api-key-input" placeholder="AIzaSy...">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-secondary" onclick="closeApiModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveApiKey()">Save Key</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * FinResearch AI - State & Core Logic
+         */
+        const AppState = {
+            documents: [], // Array of {id, name, file, blob, pdfDoc, chunks: [], numPages, toc: []}
+            selectedDocIds: new Set(),
+            activeDocId: null,
+            pdfRenderConfig: { scale: 1.2, pageNum: 1 },
+            isGenerating: false,
+            activeTocItemId: null,
+            pdfRenderRequestId: 0
+        };
+
+        const GEMINI_MODEL = 'gemini-2.5-flash';
+        
+        // --- UI Element References ---
+        const els = {
+            libraryPanel: document.getElementById('researchLibraryPanel'),
+            chatPanel: document.getElementById('panel-chat'),
+            docList: document.getElementById('document-list'),
+            uploadZone: document.getElementById('upload-zone'),
+            fileInput: document.getElementById('file-upload'),
+            tabs: document.querySelectorAll('.tab-btn'),
+            tabContents: document.querySelectorAll('.tab-content'),
+            
+            // PDF Viewer
+            pdfCanvas: document.getElementById('pdf-canvas'),
+            pdfWrapper: document.getElementById('pdf-wrapper'),
+            pdfEmpty: document.getElementById('pdf-empty-state'),
+            pageNum: document.getElementById('page-num'),
+            pageCount: document.getElementById('page-count'),
+            zoomVal: document.getElementById('zoom-val'),
+            tocContainer: document.getElementById('toc-container'),
+            tocList: document.getElementById('toc-list'),
+            
+            // Chat
+            chatHistory: document.getElementById('chat-history'),
+            chatInput: document.getElementById('chat-input'),
+            btnSend: document.getElementById('btn-send-chat'),
+            
+            // Modal
+            apiModal: document.getElementById('api-modal'),
+            apiKeyInput: document.getElementById('api-key-input')
+        };
+
+        // --- Initialization ---
+        function init() {
+            // Theme setup
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.body.classList.add('dark-theme');
+            }
+
+            // Mermaid Init
+            mermaid.initialize({ 
+                startOnLoad: false, 
+                securityLevel: 'loose',
+                theme: document.body.classList.contains('dark-theme') ? 'dark' : 'default',
+                flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 50, rankSpacing: 70, curve: "basis" }
+            });
+
+            restoreResearchLibraryState();
+            bindEvents();
+            setupFlowchartPan();
+            setupFlowchartWheelZoom();
+            renderDocumentList();
+        }
+
+        function bindEvents() {
+            // Layout Toggles
+            document.getElementById('toggle-library').onclick = toggleResearchLibrary;
+            document.getElementById('toggle-chat').onclick = () => els.chatPanel.classList.toggle('collapsed');
+            document.getElementById('toggle-toc').onclick = () => els.tocContainer.classList.toggle('collapsed');
+            
+            // Theme Toggle
+            document.getElementById('theme-toggle').onclick = () => {
+                document.body.classList.toggle('dark-theme');
+                localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
+                mermaid.initialize({ theme: document.body.classList.contains('dark-theme') ? 'dark' : 'default' });
+            };
+
+            // API Modal
+            document.getElementById('btn-api-settings').onclick = () => {
+                els.apiKeyInput.value = sessionStorage.getItem('geminiApiKey') || '';
+                els.apiModal.classList.add('active');
+            };
+
+            // Tabs
+            els.tabs.forEach(tab => {
+                tab.onclick = () => switchTab(tab.dataset.tab);
+            });
+
+            // Upload
+            // The upload area is a <label> linked to the hidden file input. Do not
+            // call fileInput.click() here, because the label already opens the dialog.
+            // Calling it again causes the file picker to appear twice.
+            els.uploadZone.ondragover = (e) => { e.preventDefault(); els.uploadZone.style.borderColor = 'var(--accent)'; };
+            els.uploadZone.ondragleave = () => els.uploadZone.style.borderColor = 'var(--border)';
+            els.uploadZone.ondrop = async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                els.uploadZone.style.borderColor = 'var(--border)';
+                await handleFiles(e.dataTransfer.files);
+            };
+            els.fileInput.onchange = async (e) => {
+                const selectedFiles = Array.from(e.target.files || []);
+                if (selectedFiles.length) await handleFiles(selectedFiles);
+                // Reset so the same file can be selected again after deletion.
+                e.target.value = '';
+            };
+
+            // PDF Controls
+            document.getElementById('pdf-prev').onclick = () => changePage(-1);
+            document.getElementById('pdf-next').onclick = () => changePage(1);
+            document.getElementById('pdf-zoom-in').onclick = () => changeZoom(0.2);
+            document.getElementById('pdf-zoom-out').onclick = () => changeZoom(-0.2);
+
+            // Chat Input
+            els.chatInput.oninput = () => {
+                els.btnSend.disabled = els.chatInput.value.trim() === '';
+                els.chatInput.style.height = 'auto';
+                els.chatInput.style.height = (els.chatInput.scrollHeight) + 'px';
+            };
+            els.chatInput.onkeydown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+            };
+            els.btnSend.onclick = sendChatMessage;
+
+            // Demo Data
+            document.getElementById('btn-load-demo').onclick = loadDemoData;
+        }
+
+        // --- Layout State Management ---
+        function toggleResearchLibrary() {
+            const panel = els.libraryPanel;
+            const button = document.getElementById("toggle-library");
+            const isCollapsed = panel.classList.toggle("collapsed");
+            
+            button.setAttribute("aria-expanded", String(!isCollapsed));
+            button.setAttribute("aria-label", isCollapsed ? "Open Research Library" : "Close Research Library");
+            localStorage.setItem("researchLibraryCollapsed", String(isCollapsed));
+            window.dispatchEvent(new Event("resize"));
+        }
+
+        function restoreResearchLibraryState() {
+            const isCollapsed = localStorage.getItem("researchLibraryCollapsed") === "true";
+            if (isCollapsed) {
+                els.libraryPanel.classList.add("collapsed");
+                document.getElementById("toggle-library").setAttribute("aria-expanded", "false");
+                document.getElementById("toggle-library").setAttribute("aria-label", "Open Research Library");
+            }
+        }
+
+        function closeApiModal() { els.apiModal.classList.remove('active'); }
+        function saveApiKey() {
+            sessionStorage.setItem('geminiApiKey', els.apiKeyInput.value.trim());
+            closeApiModal();
+        }
+
+        function switchTab(tabId) {
+            els.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+            els.tabContents.forEach(c => c.classList.toggle('active', c.id === tabId));
+            if (tabId === 'tab-document' && AppState.activeDocId) {
+                renderPdfPage();
+            }
+        }
+
+        function generateId() { return Math.random().toString(36).substr(2, 9); }
+
+        function renderDocumentList() {
+            els.docList.innerHTML = '';
+            if (AppState.documents.length === 0) {
+                els.docList.innerHTML = '<div class="text-sm text-muted" style="text-align: center; padding: 16px;">No documents uploaded.</div>';
+                return;
+            }
+
+            AppState.documents.forEach(doc => {
+                const el = document.createElement('div');
+                el.className = `doc-item ${doc.id === AppState.activeDocId ? 'active' : ''}`;
+                el.setAttribute('role', 'button');
+                el.setAttribute('tabindex', '0');
+                el.setAttribute('aria-label', `Open ${doc.name}`);
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = AppState.selectedDocIds.has(doc.id);
+                checkbox.title = 'Include this document in AI analysis';
+                checkbox.setAttribute('aria-label', `Include ${doc.name} in AI analysis`);
+                checkbox.onclick = (e) => {
+                    e.stopPropagation();
+                    if (checkbox.checked) AppState.selectedDocIds.add(doc.id);
+                    else AppState.selectedDocIds.delete(doc.id);
+                };
+
+                const info = document.createElement('div');
+                info.className = 'doc-info';
+
+                const title = document.createElement('div');
+                title.className = 'doc-title';
+                title.title = doc.name;
+                title.textContent = doc.name;
+
+                const meta = document.createElement('div');
+                meta.className = 'doc-meta';
+                meta.textContent = `${doc.numPages} pages • Processed`;
+
+                info.appendChild(title);
+                info.appendChild(meta);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'doc-delete-btn';
+                deleteBtn.title = `Delete ${doc.name}`;
+                deleteBtn.setAttribute('aria-label', `Delete ${doc.name}`);
+                deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4h6v2"></path></svg>';
+                deleteBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deleteDocument(doc.id);
+                };
+
+                el.appendChild(checkbox);
+                el.appendChild(info);
+                el.appendChild(deleteBtn);
+                el.onclick = () => setActiveDocument(doc.id);
+                el.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setActiveDocument(doc.id);
+                    }
+                };
+                els.docList.appendChild(el);
+            });
+        }
+
+        async function deleteDocument(docId) {
+            const doc = AppState.documents.find(d => d.id === docId);
+            if (!doc) return;
+
+            const confirmed = window.confirm(`Delete “${doc.name}” from this research session?`);
+            if (!confirmed) return;
+
+            AppState.selectedDocIds.delete(docId);
+            AppState.documents = AppState.documents.filter(d => d.id !== docId);
+
+            try {
+                if (doc.pdfDoc && typeof doc.pdfDoc.destroy === 'function') {
+                    await doc.pdfDoc.destroy();
+                }
+            } catch (error) {
+                console.warn('Could not release PDF resources:', error);
+            }
+
+            if (AppState.activeDocId === docId) {
+                const nextDoc = AppState.documents[0] || null;
+                AppState.activeDocId = null;
+                AppState.pdfRenderConfig.pageNum = 1;
+
+                if (nextDoc) {
+                    setActiveDocument(nextDoc.id);
+                } else {
+                    const context = els.pdfCanvas.getContext('2d');
+                    context.clearRect(0, 0, els.pdfCanvas.width, els.pdfCanvas.height);
+                    els.pdfCanvas.width = 0;
+                    els.pdfCanvas.height = 0;
+                    els.pdfWrapper.style.display = 'none';
+                    els.pdfEmpty.style.display = 'flex';
+                    els.pageNum.textContent = '0';
+                    els.pageCount.textContent = '0';
+                    els.tocList.innerHTML = '<span class="text-muted">Upload a document to view contents.</span>';
+                }
+            }
+
+            renderDocumentList();
+        }
+
+        // --- PDF Processing Logic ---
+        async function handleFiles(files) {
+            for (const file of files) {
+                if (file.type !== 'application/pdf') {
+                    alert(`Skipping ${file.name}: Only PDFs are supported.`);
+                    continue;
+                }
+                
+                const docId = 'doc-' + generateId();
+                const arrayBuffer = await file.arrayBuffer();
+                
+                try {
+                    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                    const pdfDoc = await loadingTask.promise;
+                    
+                    const newDoc = {
+                        id: docId, name: file.name, pdfDoc: pdfDoc, numPages: pdfDoc.numPages, chunks: [], toc: []
+                    };
+                    
+                    AppState.documents.push(newDoc);
+                    AppState.selectedDocIds.add(docId);
+                    
+                    extractPdfTextAndTOC(newDoc).then(() => {
+                        console.log(`Extraction complete for ${newDoc.name}`);
+                        if (AppState.activeDocId === docId) renderTOC(newDoc);
+                    });
+
+                    setActiveDocument(docId);
+                    
+                } catch (err) {
+                    console.error('Error loading PDF:', err);
+                    alert(`Failed to load ${file.name}`);
+                }
+            }
+            renderDocumentList();
+        }
+
+        // --- Advanced TOC & Text Extraction ---
+        async function extractPdfTextAndTOC(docObj) {
+            let hasValidOutline = false;
+
+            // Priority 1: use the PDF's real bookmarks/outline whenever available.
+            try {
+                const outline = await docObj.pdfDoc.getOutline();
+                if (outline && outline.length > 0) {
+                    docObj.toc = await parsePdfOutline(outline, docObj.pdfDoc, docObj.id, 1);
+                    hasValidOutline = Array.isArray(docObj.toc) && docObj.toc.length > 0;
+                }
+            } catch (error) {
+                console.warn('Native PDF outline extraction failed:', error);
+            }
+
+            const textLinesByPage = [];
+            const fontUsage = new Map();
+
+            for (let pageNumber = 1; pageNumber <= docObj.numPages; pageNumber++) {
+                try {
+                    const page = await docObj.pdfDoc.getPage(pageNumber);
+                    const viewport = page.getViewport({ scale: 1 });
+                    const textContent = await page.getTextContent({
+                        normalizeWhitespace: false,
+                        disableCombineTextItems: false
+                    });
+
+                    const pageLines = buildPdfLines(
+                        textContent.items,
+                        pageNumber,
+                        viewport.width,
+                        viewport.height
+                    );
+
+                    pageLines.forEach(line => {
+                        const roundedSize = Math.max(1, Math.round(line.size * 2) / 2);
+                        const weight = Math.max(1, line.text.length);
+                        fontUsage.set(roundedSize, (fontUsage.get(roundedSize) || 0) + weight);
+                    });
+
+                    textLinesByPage.push({
+                        page: pageNumber,
+                        width: viewport.width,
+                        height: viewport.height,
+                        lines: pageLines
+                    });
+
+                    const fullText = pageLines.map(line => line.text).join('\n').trim();
+                    if (fullText.length > 30) {
+                        docObj.chunks.push({
+                            documentId: docObj.id,
+                            documentName: docObj.name,
+                            page: pageNumber,
+                            section: 'Document Text',
+                            text: fullText
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error extracting page ${pageNumber}:`, error);
+                }
+            }
+
+            if (hasValidOutline || textLinesByPage.length === 0) return;
+
+            const bodySize = estimateBodyFontSize(fontUsage);
+            const repeatedMarginText = detectRepeatedHeadersAndFooters(textLinesByPage);
+            const candidates = [];
+            let tocIdCounter = 1;
+
+            for (const pageData of textLinesByPage) {
+                const lines = pageData.lines;
+
+                for (let index = 0; index < lines.length; index++) {
+                    const line = lines[index];
+                    const title = cleanExtractedHeading(line.text);
+                    if (!title) continue;
+
+                    const normalized = normalizeRepeatedText(title);
+                    const inTopMargin = line.y > pageData.height * 0.90;
+                    const inBottomMargin = line.y < pageData.height * 0.08;
+
+                    if ((inTopMargin || inBottomMargin) && repeatedMarginText.has(normalized)) continue;
+                    if (isLikelyNonHeading(title)) continue;
+
+                    const previousLine = lines[index - 1] || null;
+                    const nextLine = lines[index + 1] || null;
+                    const headingResult = classifyHeadingCandidate(
+                        line,
+                        previousLine,
+                        nextLine,
+                        bodySize,
+                        pageData
+                    );
+
+                    if (!headingResult.isHeading) continue;
+
+                    candidates.push({
+                        id: `toc-gen-${tocIdCounter++}`,
+                        documentId: docObj.id,
+                        title,
+                        originalTitle: title,
+                        level: headingResult.level,
+                        page: pageData.page,
+                        confidence: headingResult.confidence,
+                        source: 'pdf-text',
+                        y: line.y,
+                        children: []
+                    });
+                }
+            }
+
+            // Keep the first occurrence of an identical title/page pair and remove
+            // accidental fragments that are contained inside a fuller heading.
+            const deduped = deduplicateHeadingCandidates(candidates);
+            docObj.toc = buildHierarchy(deduped);
+        }
+
+        function buildPdfLines(items, pageNumber, pageWidth, pageHeight) {
+            const usableItems = (items || [])
+                .filter(item => item && typeof item.str === 'string' && item.str.trim())
+                .map((item, index) => ({
+                    index,
+                    text: item.str,
+                    x: Number(item.transform?.[4] || 0),
+                    y: Number(item.transform?.[5] || 0),
+                    width: Math.abs(Number(item.width || 0)),
+                    height: Math.abs(Number(item.height || item.transform?.[0] || 0)),
+                    fontName: String(item.fontName || ''),
+                    hasEOL: Boolean(item.hasEOL)
+                }))
+                // PDF.js text items are not guaranteed to arrive in reading order.
+                .sort((a, b) => {
+                    const yDifference = b.y - a.y;
+                    if (Math.abs(yDifference) > 2) return yDifference;
+                    return a.x - b.x;
+                });
+
+            const groups = [];
+
+            for (const item of usableItems) {
+                const tolerance = Math.max(2.2, Math.min(5, item.height * 0.38));
+                let group = groups.find(candidate => Math.abs(candidate.meanY - item.y) <= tolerance);
+
+                if (!group) {
+                    group = { meanY: item.y, items: [] };
+                    groups.push(group);
+                }
+
+                group.items.push(item);
+                group.meanY = group.items.reduce((sum, current) => sum + current.y, 0) / group.items.length;
+            }
+
+            return groups
+                .sort((a, b) => b.meanY - a.meanY)
+                .map(group => processLineItems(group.items, pageNumber, pageWidth, pageHeight))
+                .filter(line => line.text);
+        }
+
+        function processLineItems(items, page, pageWidth = 0, pageHeight = 0) {
+            const sorted = [...items].sort((a, b) => a.x - b.x);
+            let text = '';
+            let previous = null;
+
+            for (const item of sorted) {
+                const fragment = String(item.text ?? item.str ?? '').replace(/\s+/g, ' ').trim();
+                if (!fragment) continue;
+
+                if (!previous) {
+                    text = fragment;
+                } else {
+                    const previousRight = previous.x + (previous.width || 0);
+                    const gap = item.x - previousRight;
+                    const averageHeight = Math.max(1, ((previous.height || 0) + (item.height || 0)) / 2);
+                    const noSpaceBefore = /^[,.;:!?%\)\]\}]/.test(fragment);
+                    const noSpaceAfterPrevious = /[\(\[\{\/-]$/.test(text);
+                    const visiblySeparated = gap > averageHeight * 0.10;
+                    const separator = noSpaceBefore || noSpaceAfterPrevious || !visiblySeparated ? '' : ' ';
+                    text += separator + fragment;
+                }
+                previous = item;
+            }
+
+            text = text
+                .replace(/\s+([,.;:!?%])/g, '$1')
+                .replace(/([\(\[\{])\s+/g, '$1')
+                .replace(/\s+([\)\]\}])/g, '$1')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const sizes = sorted.map(item => item.height || 0).filter(Boolean);
+            const maxSize = sizes.length ? Math.max(...sizes) : 0;
+            const boldCount = sorted.filter(item => /bold|black|heavy|semibold|demi/i.test(item.fontName)).length;
+            const minX = sorted.length ? Math.min(...sorted.map(item => item.x)) : 0;
+            const maxRight = sorted.length ? Math.max(...sorted.map(item => item.x + (item.width || 0))) : 0;
+
+            return {
+                text,
+                size: maxSize,
+                y: sorted[0]?.y || 0,
+                x: minX,
+                width: Math.max(0, maxRight - minX),
+                page,
+                pageWidth,
+                pageHeight,
+                boldRatio: sorted.length ? boldCount / sorted.length : 0,
+                allCaps: text.length > 2 && text === text.toUpperCase() && /[A-Z]/.test(text)
+            };
+        }
+
+        function estimateBodyFontSize(fontUsage) {
+            let selectedSize = 10;
+            let largestWeight = -1;
+            for (const [size, weight] of fontUsage.entries()) {
+                if (weight > largestWeight) {
+                    largestWeight = weight;
+                    selectedSize = Number(size);
+                }
+            }
+            return selectedSize || 10;
+        }
+
+        function normalizeRepeatedText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/\d+/g, '#')
+                .replace(/[^a-z#]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function detectRepeatedHeadersAndFooters(pages) {
+            const occurrences = new Map();
+            const minimumPages = Math.max(2, Math.ceil(pages.length * 0.25));
+
+            for (const pageData of pages) {
+                const seenOnPage = new Set();
+                for (const line of pageData.lines) {
+                    const inMargin = line.y > pageData.height * 0.90 || line.y < pageData.height * 0.08;
+                    if (!inMargin || line.text.length > 120) continue;
+                    const key = normalizeRepeatedText(line.text);
+                    if (key.length < 3 || seenOnPage.has(key)) continue;
+                    seenOnPage.add(key);
+                    occurrences.set(key, (occurrences.get(key) || 0) + 1);
+                }
+            }
+
+            return new Set(
+                [...occurrences.entries()]
+                    .filter(([, count]) => count >= minimumPages)
+                    .map(([key]) => key)
+            );
+        }
+
+        function cleanExtractedHeading(value) {
+            let text = String(value || '')
+                .replace(/[\u0000-\u001F\u007F]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            // Repair a common PDF extraction artefact where letters are separated.
+            if (/^(?:[A-Za-z]\s+){3,}[A-Za-z]$/.test(text)) {
+                text = text.replace(/\s+/g, '');
+            }
+
+            return text;
+        }
+
+        function isLikelyNonHeading(text) {
+            if (text.length < 2 || text.length > 180) return true;
+            if (/^\d+$/.test(text)) return true;
+            if (/^(figure|fig\.?|table|chart|equation)\s*\d+/i.test(text)) return true;
+            if (/^(doi|https?:\/\/|www\.|e-?mail|copyright|©)/i.test(text)) return true;
+            if (/^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(text)) return true;
+            if (/^references?\s*\[?\d+\]?/i.test(text)) return true;
+            if (/^[•·▪◦\-–—]\s+/.test(text)) return true;
+            if (text.split(/\s+/).length > 22) return true;
+            return false;
+        }
+
+        function classifyHeadingCandidate(line, previousLine, nextLine, bodySize, pageData) {
+            const text = line.text;
+            const numbered = text.match(/^(\d+(?:\.\d+){0,4})[\.)]?\s+\S/);
+            const roman = /^[IVXLC]+[\.)]\s+\S/.test(text);
+            const lettered = /^[A-Z][\.)]\s+\S/.test(text);
+            const canonical = /^(abstract|introduction|background|related work|literature review|materials and methods|methods?|methodology|experimental setup|data(?:set)?|data preprocessing|feature engineering|model architecture|evaluation metrics?|results?|discussion|limitations?|conclusions?|future work|references|appendix(?:\s+[A-Z0-9]+)?)$/i.test(text);
+
+            let level = 1;
+            let score = 0;
+
+            if (numbered) {
+                const depth = numbered[1].split('.').length;
+                level = Math.min(3, depth);
+                score += 5;
+            } else if (roman || lettered) {
+                level = 1;
+                score += 4;
+            }
+
+            const sizeRatio = bodySize > 0 ? line.size / bodySize : 1;
+            if (sizeRatio >= 1.50) { score += 4; level = numbered ? level : 1; }
+            else if (sizeRatio >= 1.28) { score += 3; level = numbered ? level : 2; }
+            else if (sizeRatio >= 1.12) { score += 1.5; level = numbered ? level : 3; }
+
+            if (line.boldRatio >= 0.5) score += 2;
+            else if (line.boldRatio > 0) score += 0.75;
+            if (line.allCaps && text.length <= 80) score += 1.25;
+            if (canonical) { score += 4; level = numbered ? level : 1; }
+            if (text.length <= 85) score += 0.75;
+
+            const leftAligned = line.x <= pageData.width * 0.22;
+            const centered = Math.abs((line.x + line.width / 2) - pageData.width / 2) < pageData.width * 0.10;
+            if (leftAligned || centered) score += 0.5;
+
+            const previousGap = previousLine ? previousLine.y - line.y : 0;
+            const nextGap = nextLine ? line.y - nextLine.y : 0;
+            const typicalGap = Math.max(bodySize * 1.15, 10);
+            if (previousGap > typicalGap || nextGap > typicalGap) score += 0.75;
+
+            // Full prose sentences are rarely headings unless strongly formatted.
+            if (/[.!?]$/.test(text) && !canonical && !numbered) score -= 3;
+            if (/[,;:]$/.test(text) && !numbered) score -= 1;
+            if (/\b(et al\.|vol\.|no\.|pp\.|journal|university|conference)\b/i.test(text)) score -= 2;
+
+            return {
+                isHeading: score >= 4.5,
+                level,
+                confidence: Math.max(0.5, Math.min(0.99, score / 10))
+            };
+        }
+
+        function deduplicateHeadingCandidates(candidates) {
+            const sorted = [...candidates].sort((a, b) => a.page - b.page || b.y - a.y);
+            const result = [];
+            const exactKeys = new Set();
+
+            for (const candidate of sorted) {
+                const normalized = candidate.title.toLowerCase().replace(/\s+/g, ' ').trim();
+                const exactKey = `${candidate.page}|${normalized}`;
+                if (exactKeys.has(exactKey)) continue;
+
+                const fullerOnSamePage = result.find(existing => {
+                    if (existing.page !== candidate.page) return false;
+                    const existingText = existing.title.toLowerCase();
+                    return existingText.length > normalized.length + 4 && existingText.includes(normalized);
+                });
+                if (fullerOnSamePage) continue;
+
+                exactKeys.add(exactKey);
+                result.push(candidate);
+            }
+
+            return result.map(({ y, ...candidate }) => candidate);
+        }
+
+        async function parsePdfOutline(items, pdfDoc, docId, level) {
+            let result = [];
+            for (const item of items) {
+                let pageNum = 1;
+                if (item.dest) {
+                    try {
+                        let dest = item.dest;
+                        if (typeof dest === 'string') dest = await pdfDoc.getDestination(dest);
+                        if (Array.isArray(dest)) {
+                            const pageIndex = await pdfDoc.getPageIndex(dest[0]);
+                            pageNum = pageIndex + 1;
+                        }
+                    } catch (e) { }
+                }
+                const tocNode = {
+                    id: 'toc-out-' + generateId(),
+                    documentId: docId,
+                    title: item.title,
+                    originalTitle: item.title,
+                    level: level,
+                    page: pageNum,
+                    source: 'pdf-outline',
+                    children: []
+                };
+                if (item.items && item.items.length > 0) {
+                    tocNode.children = await parsePdfOutline(item.items, pdfDoc, docId, level + 1);
+                }
+                result.push(tocNode);
+            }
+            return result;
+        }
+
+        function buildHierarchy(flatList) {
+            const root = [];
+            const stack = [];
+            flatList.forEach(item => {
+                const node = { ...item, children: [] };
+                while (stack.length > 0 && stack[stack.length - 1].level >= node.level) {
+                    stack.pop();
+                }
+                if (stack.length === 0) {
+                    root.push(node);
+                } else {
+                    stack[stack.length - 1].children.push(node);
+                }
+                stack.push(node);
+            });
+            return root;
+        }
+
+        // --- PDF Rendering ---
+        async function setActiveDocument(docId, targetPage = 1, options = {}) {
+            const doc = AppState.documents.find(d => d.id === docId);
+            if (!doc) return;
+
+            AppState.activeDocId = docId;
+            if (!options.preserveTocSelection) AppState.activeTocItemId = null;
+            AppState.pdfRenderConfig.pageNum = Math.min(
+                Math.max(parseInt(targetPage, 10) || 1, 1),
+                doc.numPages
+            );
+            renderDocumentList();
+
+            els.pdfEmpty.style.display = 'none';
+            els.pdfWrapper.style.display = 'block';
+            els.pageCount.textContent = doc.numPages;
+            renderTOC(doc);
+            await renderPdfPage();
+        }
+
+        async function renderPdfPage() {
+            if (!AppState.activeDocId) return;
+            const requestId = ++AppState.pdfRenderRequestId;
+            const requestedDocId = AppState.activeDocId;
+            const requestedPage = AppState.pdfRenderConfig.pageNum;
+            const requestedScale = AppState.pdfRenderConfig.scale;
+            const doc = AppState.documents.find(d => d.id === requestedDocId);
+            if (!doc || !doc.pdfDoc.getPage) return; // handles mock doc case
+
+            els.pageNum.textContent = requestedPage;
+            els.zoomVal.textContent = Math.round(requestedScale * 100) + '%';
+
+            const page = await doc.pdfDoc.getPage(requestedPage);
+            // Ignore an older render that completed after a newer navigation request.
+            if (requestId !== AppState.pdfRenderRequestId || requestedDocId !== AppState.activeDocId || requestedPage !== AppState.pdfRenderConfig.pageNum) return;
+            const viewport = page.getViewport({ scale: requestedScale });
+            
+            const context = els.pdfCanvas.getContext('2d');
+            els.pdfCanvas.height = viewport.height;
+            els.pdfCanvas.width = viewport.width;
+
+            const renderContext = { canvasContext: context, viewport: viewport };
+            await page.render(renderContext).promise;
+            if (requestId !== AppState.pdfRenderRequestId || requestedDocId !== AppState.activeDocId || requestedPage !== AppState.pdfRenderConfig.pageNum) return;
+            updateTocActiveState();
+        }
+
+        function changePage(offset) {
+            if (!AppState.activeDocId) return;
+            AppState.activeTocItemId = null;
+            const doc = AppState.documents.find(d => d.id === AppState.activeDocId);
+            let newPage = AppState.pdfRenderConfig.pageNum + offset;
+            if (newPage >= 1 && newPage <= doc.numPages) {
+                AppState.pdfRenderConfig.pageNum = newPage;
+                renderPdfPage();
+            }
+        }
+
+        function changeZoom(offset) {
+            let newScale = AppState.pdfRenderConfig.scale + offset;
+            if (newScale >= 0.4 && newScale <= 3.0) {
+                AppState.pdfRenderConfig.scale = newScale;
+                renderPdfPage();
+            }
+        }
+
+        async function navigateToTocItem(item, event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            if (!item || !item.documentId) return;
+
+            if (!AppState.selectedDocIds.has(item.documentId)) {
+                AppState.selectedDocIds.add(item.documentId);
+            }
+
+            // Preserve the exact heading clicked, including when several headings
+            // are on the same PDF page.
+            AppState.activeTocItemId = item.id || null;
+
+            // Render the requested document/page first. Switching tabs before this
+            // triggered a competing render of the previous page, which caused the
+            // first click to appear ineffective.
+            await setActiveDocument(item.documentId, item.page, { preserveTocSelection: true });
+            switchTab('tab-document');
+
+            requestAnimationFrame(() => {
+                const renderArea = document.getElementById('pdf-render-area');
+                if (renderArea) {
+                    renderArea.scrollTop = 0;
+                    renderArea.scrollLeft = 0;
+                }
+                updateTocActiveState();
+            });
+        }
+
+        function renderTOC(doc) {
+            els.tocList.innerHTML = '';
+            if (!doc.toc || doc.toc.length === 0) {
+                els.tocList.innerHTML = '<p class="text-xs text-muted">A reliable table of contents could not be detected automatically.</p>';
+                return;
+            }
+
+            function createNodes(items) {
+                items.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = `toc-item toc-level-${Math.min(item.level, 3)}`;
+                    el.dataset.page = item.page;
+                    el.dataset.tocId = item.id || '';
+                    
+                    const titleSpan = document.createElement('span');
+                    titleSpan.className = 'toc-title';
+                    titleSpan.textContent = item.title;
+                    titleSpan.title = item.title; // tooltip for long titles
+                    
+                    const pageSpan = document.createElement('span');
+                    pageSpan.className = 'toc-page';
+                    pageSpan.textContent = item.page;
+
+                    el.appendChild(titleSpan);
+                    el.appendChild(pageSpan);
+                    
+                    el.onclick = (event) => navigateToTocItem(item, event);
+                    els.tocList.appendChild(el);
+                    
+                    if (item.children && item.children.length > 0) {
+                        createNodes(item.children);
+                    }
+                });
+            }
+            createNodes(doc.toc);
+            updateTocActiveState();
+        }
+
+        function updateTocActiveState() {
+            const items = Array.from(els.tocList.querySelectorAll('.toc-item'));
+            items.forEach(i => i.classList.remove('active-toc'));
+
+            // When a TOC entry was clicked, highlight that exact entry rather than
+            // the last heading found on the same page.
+            if (AppState.activeTocItemId) {
+                const exactItem = items.find(i => i.dataset.tocId === AppState.activeTocItemId);
+                if (exactItem && parseInt(exactItem.dataset.page, 10) === AppState.pdfRenderConfig.pageNum) {
+                    exactItem.classList.add('active-toc');
+                    exactItem.scrollIntoView({ block: 'nearest' });
+                    return;
+                }
+            }
+
+            // For manual page navigation, choose the first heading on the current
+            // page. If there is none, use the nearest preceding heading.
+            let activeItem = items.find(i => parseInt(i.dataset.page, 10) === AppState.pdfRenderConfig.pageNum) || null;
+            if (!activeItem) {
+                for (const item of items) {
+                    const page = parseInt(item.dataset.page, 10);
+                    if (page <= AppState.pdfRenderConfig.pageNum) activeItem = item;
+                    else break;
+                }
+            }
+            if (activeItem) activeItem.classList.add('active-toc');
+        }
+
+        // --- Flowchart Specific Logic ---
+        let flowchartZoom = 1;
+        let currentMindMapRoot = null;
+        let currentMindMapNodeLookup = new Map();
+        let expandedMindMapNodes = new Set();
+        let activeMindMapNodeId = null;
+
+        function setFlowchartZoom(value) {
+            const canvas = document.getElementById("flowchartCanvas");
+            const label = document.getElementById("flowchartZoomLabel");
+            if (!canvas) return;
+            flowchartZoom = Math.min(Math.max(value, 0.4), 3);
+            canvas.style.transform = `scale(${flowchartZoom})`;
+            if (label) label.textContent = `${Math.round(flowchartZoom * 100)}%`;
+        }
+
+        function zoomInFlowchart() { setFlowchartZoom(flowchartZoom + 0.1); }
+        function zoomOutFlowchart() { setFlowchartZoom(flowchartZoom - 0.1); }
+        function resetFlowchartZoom() { setFlowchartZoom(1); }
+
+        function fitFlowchartToViewport(fitBoth) {
+            const viewport = document.getElementById("flowchartViewport");
+            const canvas = document.getElementById("flowchartCanvas");
+            if (!viewport || !canvas || !canvas.firstChild) return;
+
+            const viewportRect = viewport.getBoundingClientRect();
+            const svg = canvas.querySelector('svg');
+            let contentWidth = canvas.scrollWidth;
+            let contentHeight = canvas.scrollHeight;
+
+            if (svg) {
+                const viewBox = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+                if (viewBox.length === 4 && viewBox.every(Number.isFinite)) {
+                    contentWidth = viewBox[2];
+                    contentHeight = viewBox[3];
+                } else {
+                    contentWidth = Number(svg.getAttribute('width')) || svg.scrollWidth || contentWidth;
+                    contentHeight = Number(svg.getAttribute('height')) || svg.scrollHeight || contentHeight;
+                }
+            }
+            if (!contentWidth || !contentHeight) return;
+
+            const paddingX = 72;
+            const paddingY = 72;
+            const scaleX = (viewportRect.width - paddingX) / contentWidth;
+            const scaleY = (viewportRect.height - paddingY) / contentHeight;
+            let fitScale = fitBoth ? Math.min(scaleX, scaleY) : scaleX;
+            if (!isFinite(fitScale) || fitScale <= 0) fitScale = 1;
+            fitScale = Math.min(Math.max(fitScale, 0.55), 1.0);
+            setFlowchartZoom(fitScale);
+            viewport.scrollLeft = 0;
+            viewport.scrollTop = 0;
+        }
+
+        function setupFlowchartPan() {
+            const viewport = document.getElementById("flowchartViewport");
+            if (!viewport) return;
+
+            let isDragging = false;
+            let startX = 0, startY = 0, scrollLeft = 0, scrollTop = 0;
+
+            viewport.addEventListener("mousedown", (e) => {
+                isDragging = true;
+                startX = e.pageX - viewport.offsetLeft;
+                startY = e.pageY - viewport.offsetTop;
+                scrollLeft = viewport.scrollLeft;
+                scrollTop = viewport.scrollTop;
+            });
+            window.addEventListener("mouseup", () => isDragging = false);
+            viewport.addEventListener("mousemove", (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const x = e.pageX - viewport.offsetLeft;
+                const y = e.pageY - viewport.offsetTop;
+                viewport.scrollLeft = scrollLeft - (x - startX);
+                viewport.scrollTop = scrollTop - (y - startY);
+            });
+        }
+
+        function setupFlowchartWheelZoom() {
+            const viewport = document.getElementById("flowchartViewport");
+            if (!viewport) return;
+
+            viewport.addEventListener("wheel", function (event) {
+                if (!event.ctrlKey) return;
+                event.preventDefault();
+                const delta = event.deltaY < 0 ? 0.1 : -0.1;
+                setFlowchartZoom(flowchartZoom + delta);
+            }, { passive: false });
+        }
+
+        function toggleFlowchartFullscreen() {
+            const wrapper = document.getElementById("flowchartViewerWrapper");
+            if (!wrapper) return;
+            if (!document.fullscreenElement) {
+                wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
+            } else {
+                document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+            }
+        }
+
+        async function exportFlowchartPng() {
+            const canvasEl = document.getElementById("flowchartCanvas");
+            if(!canvasEl.querySelector('svg')) { alert("Generate mind map first."); return;}
+            // Temporarily reset transform for export rendering
+            const oldZoom = flowchartZoom;
+            setFlowchartZoom(1);
+            
+            const canvas = await html2canvas(canvasEl, { backgroundColor: '#ffffff', scale: 2.5 });
+            const link = document.createElement('a');
+            link.download = 'methodology_mindmap.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            
+            setFlowchartZoom(oldZoom);
+        }
+
+        async function exportFlowchartPdf() {
+            const canvasEl = document.getElementById("flowchartCanvas");
+            if(!canvasEl.querySelector('svg')) { alert("Generate mind map first."); return;}
+            
+            const oldZoom = flowchartZoom;
+            setFlowchartZoom(1);
+            
+            const canvas = await html2canvas(canvasEl, { backgroundColor: '#ffffff', scale: 2.0 });
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: canvas.width > canvas.height ? 'l' : 'p', unit: 'px', format: [canvas.width, canvas.height] });
+            pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+            pdf.save('methodology_mindmap.pdf');
+            
+            setFlowchartZoom(oldZoom);
+        }
+
+
+        // --- Simple RAG Retrieval Engine ---
+        function retrieveRelevantChunks(query, docIds, limit = 5) {
+            let allChunks = [];
+            AppState.documents.forEach(doc => {
+                if (docIds.has(doc.id)) {
+                    allChunks = allChunks.concat(doc.chunks);
+                }
+            });
+
+            if (allChunks.length === 0) return "No documents processed or selected.";
+
+            const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'what', 'how', 'why']);
+            const queryWords = query.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2 && !stopWords.has(w));
+            
+            if (queryWords.length === 0) {
+                return allChunks.slice(0, limit).map(c => `[Document: ${c.documentName}, Page: ${c.page}]\n${c.text.substring(0,500)}`).join('\n\n');
+            }
+
+            const scoredChunks = allChunks.map(chunk => {
+                const chunkText = chunk.text.toLowerCase();
+                let score = 0;
+                queryWords.forEach(word => {
+                    const count = (chunkText.match(new RegExp('\\b' + word + '\\b', 'g')) || []).length;
+                    score += count;
+                });
+                return { chunk, score };
+            });
+
+            scoredChunks.sort((a, b) => b.score - a.score);
+            const topChunks = scoredChunks.slice(0, limit).filter(sc => sc.score > 0).map(sc => sc.chunk);
+            
+            let contextStr = "--- CONTEXT ---\n";
+            topChunks.forEach(c => {
+                contextStr += `[Source Document: "${c.documentName}", Page: ${c.page}, Section: "${c.section}", ID: "${c.documentId}"]\n${c.text.substring(0, 800)}...\n\n`;
+            });
+            contextStr += "---------------";
+            
+            return contextStr;
+        }
+
+        // --- Gemini API Service ---
+        async function callGeminiAPI(prompt, systemInstruction = null, jsonOutput = false) {
+            const apiKey = sessionStorage.getItem('geminiApiKey');
+            if (!apiKey) throw new Error("API_KEY_MISSING");
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.2 }
+            };
+
+            if (systemInstruction) {
+                payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+            }
+
+            if (jsonOutput) {
+                payload.generationConfig.responseMimeType = "application/json";
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(()=>({}));
+                throw new Error(errData.error?.message || `API Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+
+        // --- Chat Logic ---
+        const SYSTEM_PROMPT_CHAT = `
+You are FinResearch AI, a research assistant specialising in the financial services industry.
+You help users understand academic papers and reports.
+Answer using the supplied document context whenever possible.
+
+Rules:
+1. Use only the supplied context for document-grounded claims.
+2. Every document-grounded claim MUST include a citation object in the JSON response.
+3. Never invent document names or page numbers.
+4. If information is not found, state clearly.
+5. Return ONLY valid JSON in this exact structure:
+{
+  "answer_markdown": "Your detailed answer here, formatted in markdown. Do NOT embed citations inside the markdown text like (Author, 2020) if it refers to the context. I will append the citations at the bottom based on the array.",
+  "citations": [
+    {
+      "documentId": "id string provided in context",
+      "documentName": "name provided in context",
+      "page": integer,
+      "excerpt": "short quote"
+    }
+  ]
+}
+If no citations apply, return an empty array for "citations".
+`;
+
+        function setChatInput(text) {
+            els.chatInput.value = text;
+            els.btnSend.disabled = false;
+        }
+
+        async function sendChatMessage() {
+            const text = els.chatInput.value.trim();
+            if (!text || AppState.isGenerating) return;
+
+            addChatMessage(text, 'user');
+            els.chatInput.value = '';
+            els.btnSend.disabled = true;
+
+            if (!sessionStorage.getItem('geminiApiKey')) {
+                addChatMessage("Please configure your Gemini API Key first by clicking 'API Key' in the top right.", 'error');
+                els.apiModal.classList.add('active');
+                return;
+            }
+
+            if (AppState.selectedDocIds.size === 0) {
+                addChatMessage("Please select at least one document from the Research Library to ask questions.", 'error');
+                return;
+            }
+
+            const loadingId = addChatMessage('<div class="spinner"></div> Thinking...', 'ai');
+            AppState.isGenerating = true;
+
+            try {
+                const context = retrieveRelevantChunks(text, AppState.selectedDocIds, 8);
+                const finalPrompt = `${context}\n\nUser Question: ${text}\n\nRemember to output valid JSON.`;
+
+                const rawResponse = await callGeminiAPI(finalPrompt, SYSTEM_PROMPT_CHAT, true);
+                
+                try {
+                    const parsed = JSON.parse(rawResponse);
+                    updateChatMessage(loadingId, formatChatResponse(parsed), 'ai');
+                } catch (parseErr) {
+                    updateChatMessage(loadingId, DOMPurify.sanitize(marked.parse(rawResponse)), 'ai');
+                }
+
+            } catch (err) {
+                console.error(err);
+                if (err.message === "API_KEY_MISSING") {
+                    updateChatMessage(loadingId, "API Key missing.", 'error');
+                } else {
+                    updateChatMessage(loadingId, `Error generating response: ${err.message}`, 'error');
+                }
+            } finally {
+                AppState.isGenerating = false;
+            }
+        }
+
+        function formatChatResponse(parsedJson) {
+            let html = DOMPurify.sanitize(marked.parse(parsedJson.answer_markdown || ""));
+            
+            if (parsedJson.citations && parsedJson.citations.length > 0) {
+                html += `<div style="margin-top: 16px; border-top: 1px solid var(--border); padding-top: 8px;">
+                            <div class="text-xs font-semibold text-muted mb-2">Sources</div>`;
+                
+                parsedJson.citations.forEach(cit => {
+                    if (cit.documentId && cit.page) {
+                        html += `<button class="citation-chip" onclick="navigateToTocItem({documentId:'${cit.documentId}', page:${cit.page}})" title="${cit.excerpt || ''}">
+                                    <svg viewBox="0 0 24 24" style="width:12px; height:12px; display:inline; margin-bottom:-2px; margin-right:2px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                    ${cit.documentName} • p.${cit.page}
+                                 </button>`;
+                    }
+                });
+                html += `</div>`;
+            }
+            return html;
+        }
+
+        function addChatMessage(content, type) {
+            const id = 'msg-' + generateId();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = `chat-msg ${type === 'user' ? 'msg-user' : 'msg-ai'}`;
+            if (type === 'error') {
+                div.style.backgroundColor = 'rgba(217, 48, 37, 0.1)';
+                div.style.color = 'var(--danger)';
+                div.style.border = '1px solid rgba(217, 48, 37, 0.3)';
+            }
+            div.innerHTML = type === 'ai' ? content : DOMPurify.sanitize(content);
+            els.chatHistory.appendChild(div);
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+            return id;
+        }
+
+        function updateChatMessage(id, newContent, newType = 'ai') {
+            const div = document.getElementById(id);
+            if (div) {
+                div.innerHTML = newContent;
+                if(newType === 'error') {
+                   div.style.backgroundColor = 'rgba(217, 48, 37, 0.1)';
+                   div.style.color = 'var(--danger)';
+                }
+            }
+            els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+        }
+
+        // --- Safe Methodology Flowchart Generation ---
+        function cleanJsonText(value) {
+            let text = String(value || '').trim();
+            text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+            const first = text.indexOf('{');
+            const last = text.lastIndexOf('}');
+            if (first >= 0 && last > first) text = text.slice(first, last + 1);
+            return text;
+        }
+
+        function safeFlowNodeId(value, index) {
+            let id = String(value || `n${index + 1}`).replace(/[^A-Za-z0-9_]/g, '_');
+            if (!id || /^\d/.test(id)) id = `n_${id || index + 1}`;
+            return id;
+        }
+
+        function safeMermaidLabel(value) {
+            return String(value || '')
+                .replace(/```[a-z]*/gi, '')
+                .replace(/[\r\n]+/g, ' ')
+                .replace(/\\/g, '/')
+                .replace(/"/g, "'")
+                .replace(/[\[\]{}|<>]/g, ' ')
+                .replace(/&/g, 'and')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 120) || 'Methodology step';
+        }
+
+        function normalizeFlowchartData(raw) {
+            if (!raw || !Array.isArray(raw.nodes) || raw.nodes.length === 0) {
+                throw new Error('Gemini did not return valid methodology steps.');
+            }
+
+            const idMap = new Map();
+            const used = new Set();
+            const nodes = raw.nodes.map((node, index) => {
+                let safeId = safeFlowNodeId(node.id, index);
+                while (used.has(safeId)) safeId += `_${index + 1}`;
+                used.add(safeId);
+                idMap.set(String(node.id ?? index), safeId);
+                return {
+                    id: safeId,
+                    label: safeMermaidLabel(node.label || node.title || `Step ${index + 1}`),
+                    type: ['input', 'decision', 'output', 'process'].includes(node.type) ? node.type : 'process'
+                };
+            });
+
+            const validIds = new Set(nodes.map(n => n.id));
+            let edges = Array.isArray(raw.edges) ? raw.edges.map((edge, index) => ({
+                id: edge.id || `e${index + 1}`,
+                source: idMap.get(String(edge.source)) || safeFlowNodeId(edge.source, index),
+                target: idMap.get(String(edge.target)) || safeFlowNodeId(edge.target, index + 1),
+                label: safeMermaidLabel(edge.label || '').slice(0, 60)
+            })).filter(edge => validIds.has(edge.source) && validIds.has(edge.target) && edge.source !== edge.target) : [];
+
+            if (edges.length === 0 && nodes.length > 1) {
+                edges = nodes.slice(0, -1).map((node, index) => ({
+                    id: `auto_e${index + 1}`,
+                    source: node.id,
+                    target: nodes[index + 1].id,
+                    label: ''
+                }));
+            }
+
+            return {
+                direction: ['TD', 'TB', 'LR', 'RL', 'BT'].includes(raw.direction) ? raw.direction : 'TD',
+                nodes,
+                edges
+            };
+        }
+
+        function normalizeMindMapData(raw) {
+            if (!raw || typeof raw !== 'object') throw new Error('Gemini did not return valid mind-map data.');
+
+            const cleanLabel = (value, fallback) => String(value || fallback || '')
+                .replace(/```[a-z]*/gi, '')
+                .replace(/```/g, '')
+                .replace(/<[^>]*>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 90);
+            const cleanSummary = (value, fallback='') => String(value || fallback || '')
+                .replace(/```[a-z]*/gi, '')
+                .replace(/```/g, '')
+                .replace(/<[^>]*>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 240);
+
+            function cleanNode(node, depth = 0, index = 0) {
+                const children = Array.isArray(node?.children) ? node.children : [];
+                return {
+                    id: safeFlowNodeId(node?.id || `node_${depth}_${index}`, index),
+                    label: cleanLabel(node?.label || node?.title, depth === 0 ? 'Methodology' : `Step ${index + 1}`),
+                    summary: cleanSummary(node?.summary || node?.description || node?.excerpt, depth === 0 ? 'Click to expand the methodology mind map.' : ''),
+                    documentId: node?.documentId || '',
+                    documentName: node?.documentName || '',
+                    page: Number(node?.page) || null,
+                    excerpt: cleanSummary(node?.excerpt || ''),
+                    children: children.slice(0, 8).map((child, childIndex) => cleanNode(child, depth + 1, childIndex))
+                };
+            }
+
+            const rootSource = raw.root || raw;
+            const root = cleanNode(rootSource, 0, 0);
+            if (!root.children.length && Array.isArray(raw.nodes)) {
+                root.children = raw.nodes.slice(0, 12).map((node, index) => cleanNode(node, 1, index));
+            }
+            if (!root.children.length) throw new Error('Gemini returned no methodology branches.');
+            return root;
+        }
+
+        function indexMindMapNodes(node, map = new Map()) {
+            map.set(node.id, node);
+            (node.children || []).forEach(child => indexMindMapNodes(child, map));
+            return map;
+        }
+
+        function createMindMapTooltip() {
+            let tooltip = document.getElementById('mindmapTooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'mindmapTooltip';
+                tooltip.className = 'mindmap-tooltip';
+                tooltip.hidden = true;
+                document.body.appendChild(tooltip);
+            }
+            return tooltip;
+        }
+
+        function showMindMapTooltip(node, event) {
+            const tooltip = createMindMapTooltip();
+            const summary = node.summary || node.excerpt || (node.children?.length ? 'Click to expand this topic.' : 'Click to view a summary in chat.');
+            tooltip.innerHTML = `<div class="mindmap-tooltip-title">${DOMPurify.sanitize(node.label)}</div><div class="mindmap-tooltip-body">${DOMPurify.sanitize(summary)}</div>`;
+            tooltip.hidden = false;
+            tooltip.classList.add('visible');
+            moveMindMapTooltip(event);
+        }
+
+        function moveMindMapTooltip(event) {
+            const tooltip = document.getElementById('mindmapTooltip');
+            if (!tooltip || tooltip.hidden) return;
+            const offset = 16;
+            const maxX = window.innerWidth - tooltip.offsetWidth - 12;
+            const maxY = window.innerHeight - tooltip.offsetHeight - 12;
+            const x = Math.min(event.clientX + offset, Math.max(12, maxX));
+            const y = Math.min(event.clientY + offset, Math.max(12, maxY));
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+
+        function hideMindMapTooltip() {
+            const tooltip = document.getElementById('mindmapTooltip');
+            if (!tooltip) return;
+            tooltip.classList.remove('visible');
+            tooltip.hidden = true;
+        }
+
+        function buildVisibleMindMapLayout(root) {
+            const nodeWidth = 250;
+            const nodeHeight = 74;
+            const levelGap = 320;
+            const rowGap = 110;
+            let leafCursor = 0;
+            const nodes = [];
+            const edges = [];
+
+            function layout(node, depth = 0, parentEntry = null) {
+                const isExpanded = expandedMindMapNodes.has(node.id);
+                const visibleChildren = isExpanded ? (node.children || []) : [];
+                const entry = { ...node, depth, x: depth * levelGap + 70, y: 0, isExpanded, visibleChildren };
+                nodes.push(entry);
+
+                if (!visibleChildren.length) {
+                    entry.y = leafCursor * rowGap + 80;
+                    leafCursor += 1;
+                } else {
+                    const childEntries = visibleChildren.map(child => layout(child, depth + 1, entry));
+                    entry.y = childEntries.reduce((sum, child) => sum + child.y, 0) / childEntries.length;
+                }
+                if (parentEntry) edges.push({ source: parentEntry, target: entry });
+                return entry;
+            }
+
+            const rootEntry = layout(root, 0, null);
+            const maxDepth = Math.max(...nodes.map(n => n.depth));
+            const width = Math.max(1400, (maxDepth + 1) * levelGap + nodeWidth + 140);
+            const height = Math.max(860, leafCursor * rowGap + 160);
+            return { nodes, edges, rootEntry, width, height, nodeWidth, nodeHeight };
+        }
+
+        function renderCurrentMindMap() {
+            const targetDiv = document.getElementById('flowchartCanvas');
+            if (!targetDiv || !currentMindMapRoot) return;
+            const { nodes, edges, rootEntry, width, height, nodeWidth, nodeHeight } = buildVisibleMindMapLayout(currentMindMapRoot);
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('class', 'mindmap-svg');
+            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
+
+            edges.forEach(edge => {
+                const path = document.createElementNS(svgNS, 'path');
+                const sx = edge.source.x + nodeWidth;
+                const sy = edge.source.y + nodeHeight / 2;
+                const tx = edge.target.x;
+                const ty = edge.target.y + nodeHeight / 2;
+                const mid = (sx + tx) / 2;
+                path.setAttribute('d', `M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ty}, ${tx} ${ty}`);
+                path.setAttribute('class', 'mindmap-edge');
+                svg.appendChild(path);
+            });
+
+            nodes.forEach(node => {
+                const group = document.createElementNS(svgNS, 'g');
+                const cls = ['mindmap-node'];
+                if (node.id === rootEntry.id) cls.push('root');
+                if (node.id === activeMindMapNodeId) cls.push('active');
+                if (node.children?.length) cls.push('has-children');
+                if (node.children?.length && !node.isExpanded) cls.push('collapsed');
+                group.setAttribute('class', cls.join(' '));
+                group.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+                group.setAttribute('tabindex', '0');
+                group.setAttribute('role', 'button');
+                group.setAttribute('aria-label', node.label);
+
+                const rect = document.createElementNS(svgNS, 'rect');
+                rect.setAttribute('width', nodeWidth);
+                rect.setAttribute('height', nodeHeight);
+                group.appendChild(rect);
+
+                const words = node.label.split(' ');
+                const lines = [];
+                let current = '';
+                words.forEach(word => {
+                    const candidate = current ? `${current} ${word}` : word;
+                    if (candidate.length > 28 && current) {
+                        lines.push(current);
+                        current = word;
+                    } else current = candidate;
+                });
+                if (current) lines.push(current);
+                const shown = lines.slice(0, 3);
+
+                const textNode = document.createElementNS(svgNS, 'text');
+                textNode.setAttribute('x', nodeWidth / 2);
+                textNode.setAttribute('y', nodeHeight / 2 - (shown.length > 1 ? 10 : 0));
+                textNode.setAttribute('text-anchor', 'middle');
+                shown.forEach((line, index) => {
+                    const tspan = document.createElementNS(svgNS, 'tspan');
+                    tspan.setAttribute('x', nodeWidth / 2);
+                    tspan.setAttribute('dy', index === 0 ? '0' : '1.15em');
+                    tspan.textContent = line;
+                    textNode.appendChild(tspan);
+                });
+                group.appendChild(textNode);
+
+                if (node.children?.length) {
+                    const expandGroup = document.createElementNS(svgNS, 'g');
+                    expandGroup.setAttribute('class', 'mindmap-expand-btn');
+                    expandGroup.setAttribute('transform', `translate(${nodeWidth + 18}, ${nodeHeight / 2})`);
+                    expandGroup.setAttribute('tabindex', '0');
+                    expandGroup.setAttribute('role', 'button');
+                    expandGroup.setAttribute('aria-label', node.isExpanded ? 'Collapse topic' : 'Expand topic');
+
+                    const circle = document.createElementNS(svgNS, 'circle');
+                    circle.setAttribute('r', '14');
+                    circle.setAttribute('cx', '0');
+                    circle.setAttribute('cy', '0');
+                    expandGroup.appendChild(circle);
+
+                    const arrow = document.createElementNS(svgNS, 'text');
+                    arrow.setAttribute('x', '0');
+                    arrow.setAttribute('y', '1');
+                    arrow.textContent = node.isExpanded ? '▾' : '▸';
+                    expandGroup.appendChild(arrow);
+
+                    const triggerExpand = (evt) => {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        toggleMindMapNodeExpansion(node.id);
+                    };
+                    expandGroup.addEventListener('click', triggerExpand);
+                    expandGroup.addEventListener('keydown', (evt) => {
+                        if (evt.key === 'Enter' || evt.key === ' ') triggerExpand(evt);
+                    });
+                    expandGroup.addEventListener('mouseenter', (evt) => showMindMapTooltip(node, evt));
+                    expandGroup.addEventListener('mousemove', moveMindMapTooltip);
+                    expandGroup.addEventListener('mouseleave', hideMindMapTooltip);
+                    group.appendChild(expandGroup);
+                }
+
+                const triggerSummary = () => handleMindMapNodeInteraction(node);
+                group.addEventListener('click', triggerSummary);
+                group.addEventListener('keydown', (evt) => {
+                    if (evt.key === 'Enter' || evt.key === ' ') {
+                        evt.preventDefault();
+                        triggerSummary();
+                    }
+                });
+                group.addEventListener('mouseenter', (evt) => showMindMapTooltip(node, evt));
+                group.addEventListener('mousemove', moveMindMapTooltip);
+                group.addEventListener('mouseleave', hideMindMapTooltip);
+
+                svg.appendChild(group);
+            });
+
+            targetDiv.innerHTML = '';
+            targetDiv.appendChild(svg);
+        }
+
+        function updateMindMapChatSummary(node) {
+            let html = `<div class="markdown-body"><h3>${DOMPurify.sanitize(node.label)}</h3><p>${DOMPurify.sanitize(node.summary || 'No summary available for this topic yet.')}</p>`;
+            if (node.excerpt) {
+                html += `<p><strong>Context:</strong> ${DOMPurify.sanitize(node.excerpt)}</p>`;
+            }
+            const page = Number(node.page);
+            if (node.documentId && node.documentName && page) {
+                html += `<div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
+                            <div class="text-xs font-semibold text-muted mb-2">Source</div>
+                            <button class="citation-chip" onclick="navigateToTocItem({documentId:'${node.documentId}', page:${page}})" title="${DOMPurify.sanitize(node.excerpt || node.summary || '')}">
+                                ${DOMPurify.sanitize(node.documentName)} • p.${page}
+                            </button>
+                        </div>`;
+            }
+            html += `</div>`;
+            addChatMessage(html, 'ai');
+        }
+
+        async function fetchMindMapTopicSummary(node) {
+            if (node.summary && node.summary.length > 20) {
+                updateMindMapChatSummary(node);
+                return;
+            }
+            if (!sessionStorage.getItem('geminiApiKey') || AppState.selectedDocIds.size === 0) {
+                updateMindMapChatSummary(node);
+                return;
+            }
+            const loadingId = addChatMessage('<div class="spinner"></div> Summarising topic...', 'ai');
+            try {
+                const context = retrieveRelevantChunks(node.label, AppState.selectedDocIds, 6);
+                const prompt = `${context}
+
+Summarise the methodology topic "${node.label}" in 3 to 5 sentences. If possible, include one supporting citation in JSON with keys answer_markdown and citations.`;
+                const raw = await callGeminiAPI(prompt, SYSTEM_PROMPT_CHAT, true);
+                try {
+                    const parsed = JSON.parse(cleanJsonText(raw));
+                    updateChatMessage(loadingId, formatChatResponse(parsed), 'ai');
+                } catch {
+                    updateChatMessage(loadingId, DOMPurify.sanitize(marked.parse(raw)), 'ai');
+                }
+            } catch (error) {
+                updateChatMessage(loadingId, `Could not generate topic summary: ${error.message}`, 'error');
+            }
+        }
+
+        function toggleMindMapNodeExpansion(nodeId) {
+            if (expandedMindMapNodes.has(nodeId)) expandedMindMapNodes.delete(nodeId);
+            else expandedMindMapNodes.add(nodeId);
+            renderCurrentMindMap();
+            setTimeout(() => fitFlowchartToViewport(true), 40);
+        }
+
+        function handleMindMapNodeInteraction(node) {
+            activeMindMapNodeId = node.id;
+            renderCurrentMindMap();
+            fetchMindMapTopicSummary(currentMindMapNodeLookup.get(node.id) || node);
+        }
+
+        function renderGeminiMindMap(rawResponse, targetDiv) {
+            const parsed = JSON.parse(cleanJsonText(rawResponse));
+            currentMindMapRoot = normalizeMindMapData(parsed);
+            currentMindMapNodeLookup = indexMindMapNodes(currentMindMapRoot);
+            expandedMindMapNodes = new Set();
+            activeMindMapNodeId = currentMindMapRoot.id;
+            renderCurrentMindMap();
+            resetFlowchartZoom();
+            setTimeout(() => fitFlowchartToViewport(true), 120);
+        }
+
+        // --- Tools Orchestrator (Tabs content generation) ---
+        async function generateToolContent(toolType) {
+            if (!sessionStorage.getItem('geminiApiKey')) {
+                alert("Please configure your Gemini API Key first.");
+                return;
+            }
+            if (AppState.selectedDocIds.size === 0) {
+                alert("Please select at least one document.");
+                return;
+            }
+
+            const targetDiv = document.getElementById(`${toolType === 'flowchart' ? 'flowchartCanvas' : toolType + '-result'}`);
+            targetDiv.innerHTML = `<div class="loader-container"><div class="spinner"></div><p>Generating ${toolType}...</p></div>`;
+
+            let fullContext = "";
+            AppState.documents.forEach(doc => {
+                if(AppState.selectedDocIds.has(doc.id)) {
+                    let docText = doc.chunks.map(c => c.text).join(' ');
+                    fullContext += `\n\n--- DOCUMENT: ${doc.name} ---\n${docText.substring(0, 15000)}...`; 
+                }
+            });
+
+            let prompt = "";
+            let systemInst = "You are a senior financial research analyst.";
+            let isMermaid = false;
+
+            switch(toolType) {
+                case 'summary':
+                    prompt = `Provide a structured academic summary of the following document(s). Include headings for: Overview, Research Problem, Methodology, Main Findings, and Industry Relevance. Use Markdown. \n\nDocuments:\n${fullContext}`;
+                    break;
+                case 'matrix':
+                    prompt = `Create a Literature Matrix comparing the following documents. Output a Markdown table with columns: Document Title, Research Objective, Methodology, Key Findings, Limitations. \n\nDocuments:\n${fullContext}`;
+                    break;
+                case 'compare':
+                    prompt = `Compare and contrast these documents. Highlight similarities, contradictions, and methodological differences. Use Markdown. \n\nDocuments:\n${fullContext}`;
+                    break;
+                case 'gaps':
+                    prompt = `Analyze these documents and identify Research Gaps (Methodological, Dataset, Domain). Present them clearly with suggested future research questions. Use Markdown. \n\nDocuments:\n${fullContext}`;
+                    break;
+                case 'flowchart':
+                    prompt = `Use Google Gemini to analyse only the methodology described in the supplied research documents and return VALID JSON ONLY for an interactive hierarchical methodology mind map.
+Do not return Mermaid syntax, Markdown, comments, or code fences.
+Use this exact schema:
+{
+  "root": {
+    "id": "root",
+    "label": "Research Methodology",
+    "summary": "Short summary of the overall methodology.",
+    "documentId": "optional source document id",
+    "documentName": "optional source document name",
+    "page": 1,
+    "excerpt": "optional supporting excerpt",
+    "children": [
+      {
+        "id": "branch_1",
+        "label": "Data Preparation",
+        "summary": "Short summary of this topic.",
+        "documentId": "optional source document id",
+        "documentName": "optional source document name",
+        "page": 1,
+        "excerpt": "optional supporting excerpt",
+        "children": [
+          {
+            "id": "step_1",
+            "label": "Data Collection",
+            "summary": "Short summary of this step.",
+            "documentId": "optional source document id",
+            "documentName": "optional source document name",
+            "page": 1,
+            "excerpt": "optional supporting excerpt",
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}
+Rules:
+1. Create 4 to 8 main branches from the root.
+2. Use the actual methodology from the selected documents.
+3. Put related sub-steps under the correct branch.
+4. Keep labels concise, plain text, and under 70 characters.
+5. Each node must include a 1 to 3 sentence summary in the summary field.
+6. If possible, attach the best supporting documentId, documentName, page, and excerpt for each node.
+7. Use only letters, numbers, and underscores in IDs.
+8. Do not invent steps unsupported by the documents.
+9. Return JSON only.
+
+Documents:
+${fullContext}`;
+                    isMermaid = true;
+                    break;
+            }
+
+            try {
+                const response = await callGeminiAPI(prompt, systemInst);
+                
+                if (isMermaid) {
+                    renderGeminiMindMap(response, targetDiv);
+                } else {
+                    targetDiv.innerHTML = DOMPurify.sanitize(marked.parse(response));
+                }
+            } catch (err) {
+                targetDiv.innerHTML = `<div class="alert">Error generating content: ${err.message}</div>`;
+            }
+        }
+
+        // --- Demo Data ---
+        function loadDemoData() {
+            if (AppState.documents.some(d => d.id === 'demo-1')) return;
+
+            const demoDocs = [
+                {
+                    id: 'demo-1',
+                    name: 'AI Applications in Retail Banking MVP.pdf',
+                    numPages: 12,
+                    chunks: [
+                        { documentId: 'demo-1', documentName: 'AI Applications in Retail Banking MVP.pdf', page: 1, section: 'Abstract', text: 'This study investigates the adoption of ML models in retail banking for credit scoring and customer churn prediction.' },
+                        { documentId: 'demo-1', documentName: 'AI Applications in Retail Banking MVP.pdf', page: 4, section: 'Methodology', text: 'We utilized a dataset of 500,000 anonymized retail banking customer records. A Random Forest classifier and an XGBoost model were trained. The data was split temporally.' },
+                        { documentId: 'demo-1', documentName: 'AI Applications in Retail Banking MVP.pdf', page: 8, section: 'Results', text: 'XGBoost outperformed traditional logistic regression by 14% in AUC for credit default prediction. However, explainability remains a challenge for regulatory compliance.' }
+                    ],
+                    toc: [
+                        { id:'toc1', documentId:'demo-1', title:'1. Introduction', level:1, page:1, children:[] },
+                        { id:'toc2', documentId:'demo-1', title:'2. Related Work', level:1, page:2, children:[] },
+                        { id:'toc3', documentId:'demo-1', title:'3. Methodology', level:1, page:4, children:[
+                            { id:'toc4', documentId:'demo-1', title:'3.1 Data Preparation', level:2, page:4, children:[] },
+                            { id:'toc5', documentId:'demo-1', title:'3.2 Model Selection', level:2, page:6, children:[] }
+                        ]},
+                        { id:'toc6', documentId:'demo-1', title:'4. Results', level:1, page:8, children:[] }
+                    ]
+                }
+            ];
+
+            const mockPdfDoc = {
+                numPages: 12,
+                getPage: async () => ({
+                    getViewport: () => ({width: 600, height: 800}),
+                    render: () => ({promise: Promise.resolve()})
+                })
+            };
+
+            demoDocs.forEach(d => {
+                d.pdfDoc = { ...mockPdfDoc, numPages: d.numPages };
+                AppState.documents.push(d);
+                AppState.selectedDocIds.add(d.id);
+            });
+
+            renderDocumentList();
+            setActiveDocument('demo-1');
+            
+            setTimeout(() => {
+                const ctx = els.pdfCanvas.getContext('2d');
+                if(ctx) {
+                    ctx.fillStyle = '#f0f0f0';
+                    ctx.fillRect(0,0,600,800);
+                    ctx.fillStyle = '#000';
+                    ctx.font = '20px Arial';
+                    ctx.fillText("Demo Document Loaded", 50, 100);
+                    ctx.font = '14px Arial';
+                    ctx.fillText("Ask questions in the chat or use the tabs to analyze.", 50, 140);
+                    ctx.fillText("(PDF rendering is simulated for Demo Mode)", 50, 170);
+                }
+            }, 100);
+            
+            addChatMessage("Demo documents loaded! You can now test the chat if you input an API key.", 'ai');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <div id="mindmapTooltip" class="mindmap-tooltip" hidden></div>
+</body>
+</html>
