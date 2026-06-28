@@ -378,6 +378,24 @@
         .pdf-page-wrapper {
             position: relative; background: white; box-shadow: var(--shadow);
         }
+
+        #pdf-empty-state {
+            width: min(560px, 90%);
+            min-height: 220px;
+            margin: auto;
+            padding: 40px 24px;
+            background: var(--surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        #pdf-empty-state p {
+            margin-top: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
         canvas { display: block; }
         
         /* Tool Content wrappers (Summary, Matrix, etc) */
@@ -806,7 +824,7 @@
             min-height: 98px;
         }
         .evidence-step:not(:last-child)::after {
-            content: "→";
+            content: "â†’";
             position: absolute;
             right: -15px;
             top: 37%;
@@ -827,7 +845,7 @@
 
 
         /* Research quality layout follows the actual workspace width.
-           With chat open it becomes 2 × 2; with chat closed or zoomed out,
+           With chat open it becomes 2 Ã— 2; with chat closed or zoomed out,
            it automatically returns to a single horizontal row. */
         @container agent-card-width (max-width: 620px) {
             .quality-grid {
@@ -851,7 +869,7 @@
             .quality-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
             .evidence-chain { grid-template-columns: 1fr; }
             .evidence-step:not(:last-child)::after {
-                content: "↓";
+                content: "â†“";
                 right: 50%;
                 top: auto;
                 bottom: -19px;
@@ -1544,7 +1562,7 @@
                                 <div style="width:28px;"></div> <!-- Spacer -->
                             </div>
                             <div class="pdf-render-area" id="pdf-render-area">
-                                <div class="pdf-page-wrapper" id="pdf-wrapper">
+                                <div class="pdf-page-wrapper" id="pdf-wrapper" style="display:none;">
                                     <canvas id="pdf-canvas"></canvas>
                                 </div>
                                 <div id="pdf-empty-state" class="loader-container">
@@ -1680,7 +1698,7 @@
                             </section>
 
                             <section class="agent-card wide">
-                                <h3><span class="agent-icon blue">⇩</span> Export Research Package</h3>
+                                <h3><span class="agent-icon blue">â‡©</span> Export Research Package</h3>
                                 <p class="agent-description"><strong>What this does:</strong> Combines the generated research outputs and selected document names into a professionally formatted report.</p>
                                 <div class="agent-actions">
                                     <button class="agent-btn blue" onclick="exportResearchPackagePDF()" title="Download the research package as a formatted PDF">Export as PDF</button>
@@ -1712,7 +1730,7 @@
                             </div>
                         </div>
                         <div class="flowchart-toolbar">
-                            <button id="flowZoomOutBtn" onclick="zoomOutFlowchart()" title="Make the visual smaller">−</button>
+                            <button id="flowZoomOutBtn" onclick="zoomOutFlowchart()" title="Make the visual smaller">âˆ’</button>
                             <span id="flowchartZoomLabel">100%</span>
                             <button id="flowZoomInBtn" onclick="zoomInFlowchart()" title="Make the visual larger">+</button>
                             <button id="flowResetZoomBtn" onclick="resetFlowchartZoom()" title="Return to the default zoom level">Reset</button>
@@ -2046,7 +2064,7 @@
 
                 const meta = document.createElement('div');
                 meta.className = 'doc-meta';
-                meta.textContent = `${doc.numPages} pages • Processed`;
+                meta.textContent = `${doc.numPages} pages â€¢ Processed`;
 
                 info.appendChild(title);
                 info.appendChild(meta);
@@ -2081,7 +2099,7 @@
             const doc = AppState.documents.find(d => d.id === docId);
             if (!doc) return;
 
-            const confirmed = window.confirm(`Delete “${doc.name}” from this research session?`);
+            const confirmed = window.confirm(`Delete â€œ${doc.name}â€ from this research session?`);
             if (!confirmed) return;
 
             AppState.selectedDocIds.delete(docId);
@@ -2467,10 +2485,10 @@
             if (text.length < 2 || text.length > 180) return true;
             if (/^\d+$/.test(text)) return true;
             if (/^(figure|fig\.?|table|chart|equation)\s*\d+/i.test(text)) return true;
-            if (/^(doi|https?:\/\/|www\.|e-?mail|copyright|©)/i.test(text)) return true;
+            if (/^(doi|https?:\/\/|www\.|e-?mail|copyright|Â©)/i.test(text)) return true;
             if (/^[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(text)) return true;
             if (/^references?\s*\[?\d+\]?/i.test(text)) return true;
-            if (/^[•·▪◦\-–—]\s+/.test(text)) return true;
+            if (/^[â€¢Â·â–ªâ—¦\-â€“â€”]\s+/.test(text)) return true;
             if (text.split(/\s+/).length > 22) return true;
             return false;
         }
@@ -3165,7 +3183,7 @@ If no document citations apply, return an empty array for "citations".
                                 <button class="citation-chip"
                                     ${cit.documentId && page ? `onclick="navigateToTocItem({documentId:'${cit.documentId}',page:${page}})"` : ''}
                                     title="${safeExcerpt}">
-                                    ${safeDocName} • ${location}
+                                    ${safeDocName} â€¢ ${location}
                                 </button>
                                 <span class="verification-badge verification-${verification.status}">${verification.label}</span>
                              </span>`;
@@ -3484,7 +3502,7 @@ If no document citations apply, return an empty array for "citations".
                     const arrow = document.createElementNS(svgNS, 'text');
                     arrow.setAttribute('x', '0');
                     arrow.setAttribute('y', '1');
-                    arrow.textContent = node.isExpanded ? '▾' : '▸';
+                    arrow.textContent = node.isExpanded ? 'â–¾' : 'â–¸';
                     expandGroup.appendChild(arrow);
 
                     const triggerExpand = (evt) => {
@@ -3531,7 +3549,7 @@ If no document citations apply, return an empty array for "citations".
                 html += `<div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px;">
                             <div class="text-xs font-semibold text-muted mb-2">Source</div>
                             <button class="citation-chip" onclick="navigateToTocItem({documentId:'${node.documentId}', page:${page}})" title="${DOMPurify.sanitize(node.excerpt || node.summary || '')}">
-                                ${DOMPurify.sanitize(node.documentName)} • p.${page}
+                                ${DOMPurify.sanitize(node.documentName)} â€¢ p.${page}
                             </button>
                         </div>`;
             }
@@ -3656,7 +3674,7 @@ Summarise the selected ${methodologyMode === 'mindmap' ? 'document topic' : 'met
             if (current && lines.length < maxLines) lines.push(current);
             const consumed = lines.join(' ').split(/\s+/).filter(Boolean).length;
             if (consumed < words.length && lines.length) {
-                lines[lines.length - 1] = lines[lines.length - 1].replace(/[.…]*$/, '') + '…';
+                lines[lines.length - 1] = lines[lines.length - 1].replace(/[.â€¦]*$/, '') + 'â€¦';
             }
             return lines.length ? lines : ['Methodology step'];
         }
@@ -4382,7 +4400,7 @@ Instructions:
                 y += 25;
 
                 addSectionHeading('Selected Documents');
-                if (data.documents.length) data.documents.forEach(name => addText(`• ${name}`, { indent: 8, after: 3 }));
+                if (data.documents.length) data.documents.forEach(name => addText(`â€¢ ${name}`, { indent: 8, after: 3 }));
                 else addText('No documents were selected at the time of export.', { color: [95, 99, 104] });
 
                 data.sections.forEach((section, sectionIndex) => {
@@ -4392,7 +4410,7 @@ Instructions:
                         if (block.type === 'heading') addText(block.text, { size: block.level <= 2 ? 13 : 11.5, bold: true, color: [32, 33, 36], after: 7 });
                         else if (block.type === 'paragraph') addText(block.text, { size: 10.3, after: 8 });
                         else if (block.type === 'code') addText(block.text, { size: 8.7, indent: 8, color: [60, 64, 67], after: 8 });
-                        else if (block.type === 'list') addText(`${block.ordered ? block.index + '.' : '•'} ${block.text}`, { size: 10.1, indent: 12, after: 4 });
+                        else if (block.type === 'list') addText(`${block.ordered ? block.index + '.' : 'â€¢'} ${block.text}`, { size: 10.1, indent: 12, after: 4 });
                         else if (block.type === 'table') addTable(block.rows);
                     });
                 });
@@ -4704,7 +4722,7 @@ ${fullContext}`;
 
             const originalText = button.textContent;
             button.disabled = true;
-            button.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> Loading papers…';
+            button.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> Loading papersâ€¦';
 
             try {
                 const downloadedFiles = [];
